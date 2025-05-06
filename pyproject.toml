@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 source = "vcs"
 
 [tool.hatch.build.targets.wheel]
-    packages = ["src/diracxdoc"]
+packages = ["src/diracxdocs"]
 
 
 [project]
