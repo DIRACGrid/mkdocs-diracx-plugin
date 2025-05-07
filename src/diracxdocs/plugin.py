@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import fnmatch
 import logging
 import tempfile
 import sh
@@ -118,7 +119,7 @@ class DiracxDoc(BasePlugin[DiracXDocsConfig]):  # type: ignore
             self._original_dir,
             self._temp_dir,
             dirs_exist_ok=True,
-            ignore=lambda x, y: [".git"],
+            ignore=lambda x, y: [fn for fn in y if fnmatch.fnmatch(fn, ".*")],
         )
 
         with set_directory(Path(self._temp_dir)):
