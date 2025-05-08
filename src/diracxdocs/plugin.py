@@ -109,6 +109,9 @@ class DiracxDoc(BasePlugin[DiracXDocsConfig]):  # type: ignore
 
         config["docs_dir"] = Path(self._temp_dir) / "docs"
         config["config_file_path"] = Path(self._temp_dir) / "mkdocs.yml"
+
+        # Some extensions obviously rely on the basepath, so modify it
+        config["mdx_configs"].setdefault('pymdownx.snippets',{})['base_path'] = Path(self._temp_dir)
         return config
 
     def on_pre_build(self, *, config: MkDocsConfig) -> None:
