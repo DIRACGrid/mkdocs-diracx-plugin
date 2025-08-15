@@ -15,7 +15,6 @@ from pathlib import Path
 from mkdocs.plugins import BasePlugin
 from mkdocs.config.base import Config
 from mkdocs.config import config_options as c
-from mkdocs.utils import warning_filter
 
 from mkdocs.config.base import Config
 from mkdocs.exceptions import PluginError
@@ -28,7 +27,6 @@ if TYPE_CHECKING:
     from mkdocs.livereload import LiveReloadServer
 
 log = logging.getLogger("mkdocs.plugins." + __name__)
-log.addFilter(warning_filter)
 
 
 @contextmanager
