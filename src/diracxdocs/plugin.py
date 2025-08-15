@@ -68,7 +68,7 @@ class RepoItem(Config):  # type: ignore
             raise PluginError("repo does not define a url or a path")
 
         if Path(self.url).is_dir() and self.branch:
-            log.warning(f"{self.url} is a path, ignoring branch option {self.branch}")
+            log.info(f"{self.url} is a path, ignoring branch option {self.branch}")
 
 
 class DiracXDocsConfig(Config):  # type: ignore
