@@ -15,9 +15,8 @@ from pathlib import Path
 from mkdocs.plugins import BasePlugin
 from mkdocs.config.base import Config
 from mkdocs.config import config_options as c
-
-from mkdocs.config.base import Config
 from mkdocs.exceptions import PluginError
+from mkdocs.structure.pages import Page
 
 from typing import TYPE_CHECKING, Callable, Literal
 from collections.abc import Generator
@@ -86,6 +85,9 @@ class DiracxDoc(BasePlugin[DiracXDocsConfig]):  # type: ignore
     # Original diracx location
     _original_dir: Path = Path().absolute()
 
+    # Track file sources for edit URL generation: path -> (repo_url, branch)
+    _file_sources: dict[str, tuple[str, str]] = {}
+
     def __init__(self) -> None:
         self._temp_dir = tempfile.mkdtemp()
 
@@ -112,8 +114,25 @@ class DiracxDoc(BasePlugin[DiracXDocsConfig]):  # type: ignore
         config["mdx_configs"].setdefault('pymdownx.snippets',{})['base_path'] = Path(self._temp_dir)
         return config
 
+    def _record_doc_files(self, docs_dir: Path, repo_url: str, branch: str) -> None:
+        """Record the source repository for all markdown files in a docs directory.
+
+        Args:
+            docs_dir: Path to the docs directory to scan
+            repo_url: The repository URL or local path
+            branch: The branch name
+        """
+        if not docs_dir.is_dir():
+            return
+        for md_file in docs_dir.rglob("*.md"):
+            # Get path relative to docs directory
+            rel_path = md_file.relative_to(docs_dir)
+            self._file_sources[str(rel_path)] = (repo_url, branch)
+
     def on_pre_build(self, *, config: MkDocsConfig) -> None:
         """Merge all the doc together"""
+        # Reset file sources tracking for each build
+        self._file_sources = {}
 
         # Copy the current directory (which should be the diracx repo)
         shutil.copytree(
@@ -121,6 +140,12 @@ class DiracxDoc(BasePlugin[DiracXDocsConfig]):  # type: ignore
             self._temp_dir,
             dirs_exist_ok=True,
             ignore=lambda x, y: [fn for fn in y if fnmatch.fnmatch(fn, ".*")],
+        )
+
+        # Record diracx files using the repo_url from config
+        diracx_repo_url = config.get("repo_url", "")
+        self._record_doc_files(
+            self._original_dir / "docs", diracx_repo_url, "main"
         )
 
         with set_directory(Path(self._temp_dir)):
@@ -135,12 +160,37 @@ class DiracxDoc(BasePlugin[DiracXDocsConfig]):  # type: ignore
                             self._temp_dir / Path(repo_dir),
                             dirs_exist_ok=True,
                         )
+                    # Record files from local path
+                    self._record_doc_files(repo_path / "docs", repo.url, repo.branch)
                 else:
                     repo_hash = str(abs(hash(repo.url)))
                     log.info(f"Cloning {repo}")
                     if repo_hash not in sh.git.remote():
                         sh.git.remote.add(repo_hash, repo.url)
                     sh.git.fetch(repo_hash)
+                    # Get list of doc files from the remote branch before checkout
+                    # so we know exactly which files come from this repo
+                    for repo_dir in repo.include:
+                        if repo_dir == "docs" or repo_dir.startswith("docs/"):
+                            try:
+                                tree_output = sh.git(
+                                    "ls-tree",
+                                    "-r",
+                                    "--name-only",
+                                    f"{repo_hash}/{repo.branch}",
+                                    repo_dir,
+                                )
+                                for file_path in str(tree_output).strip().split("\n"):
+                                    if file_path.endswith(".md"):
+                                        # Path is like "docs/admin/foo.md", we want "admin/foo.md"
+                                        rel_path = file_path.removeprefix("docs/")
+                                        self._file_sources[rel_path] = (
+                                            repo.url,
+                                            repo.branch,
+                                        )
+                            except sh.ErrorReturnCode:
+                                # Directory might not exist in this repo
+                                pass
                     sh.git.checkout(f"{repo_hash}/{repo.branch}", "--", *repo.include)
 
     def on_shutdown(self) -> None:
@@ -166,3 +216,20 @@ class DiracxDoc(BasePlugin[DiracXDocsConfig]):  # type: ignore
             if repo_path.is_dir():
                 server.watch(str(repo_path / "docs"))
         return server
+
+    def on_page_context(
+        self,
+        context: dict,
+        page: Page,
+        config: MkDocsConfig,
+        **kwargs,
+    ) -> dict | None:
+        """Modify page.edit_url to point to the correct source repository."""
+        src_path = page.file.src_path
+        if src_path in self._file_sources:
+            repo_url, branch = self._file_sources[src_path]
+            # Skip if local path (development mode)
+            if not Path(repo_url).is_dir():
+                repo_url = repo_url.rstrip("/").removesuffix(".git")
+                page.edit_url = f"{repo_url}/edit/{branch}/docs/{src_path}"
+        return context
