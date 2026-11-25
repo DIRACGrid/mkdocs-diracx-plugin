@@ -12,7 +12,7 @@ packages = ["src/diracxdocs"]
 [project]
 name = "mkdocs-diracx-plugin"
 authors = [{ name = "Christophe Haen", email = "christophe.haen@cern.ch" }]
-description = "A small example package"
+description = "Plugin to build the DiracX documentation"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "GPL-3.0-only" }
@@ -28,8 +28,10 @@ dependencies = ["mkdocs", "sh"]
 dynamic = ["version"]
 
 [project.urls]
-Homepage = "https://github.com/pypa/sampleproject"
-Issues = "https://github.com/pypa/sampleproject/issues"
+Homepage = "https://diracgrid.org"
+Repository = "https://github.com/DIRACGrid/mkdocs-diracx-plugin"
+Issues = "https://github.com/DIRACGrid/mkdocs-diracx-plugin/issues"
+Security = "https://github.com/DIRACGrid/mkdocs-diracx-plugin/security/policy"
 
 
 [project.entry-points."mkdocs.plugins"]
